@@ -1,8 +1,13 @@
+'use client'
+import IntroScreen from '@/components/intro/IntroScreen'
+import { useAppStore } from '@/store/useAppStore'
 
 export default function Home() {
+  const phase = useAppStore(s => s.phase)
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-        Hello world!
-    </div>
-  );
+    <main>
+      {(phase === 'loading' || phase === 'intro') && <IntroScreen />}
+    </main>
+  )
 }
