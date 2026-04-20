@@ -12,7 +12,7 @@ export default function IntroScreen() {
         수학, 과학, 창의력의 세계로 함께 떠나요
       </p>
       <button
-        onClick={() => setPhase('character-select')}
+        onClick={() => setPhase('world')}
         className="bg-[#1D9E75] text-white border-none rounded-full px-10 py-3.5 text-base cursor-pointer"
       >
         탐험 시작하기
