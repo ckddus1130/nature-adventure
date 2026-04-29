@@ -195,7 +195,7 @@ export default function WorldStage() {
         near: -1000,
         far: 1000,
       }}
-      style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}
+      style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', touchAction: 'none' }}
     >
       <ambientLight intensity={0.7} />
       <directionalLight
