@@ -22,6 +22,11 @@ type HouseConfig = {
   scale?: [number, number, number]
 }
 
+type HouseInfo = {
+  title: string
+  description: string
+}
+
 const HOUSE_CONFIGS: HouseConfig[] = [
   {
     modelSrc: '/models/house.glb',
@@ -51,6 +56,21 @@ const HOUSE_CONFIGS: HouseConfig[] = [
     hiddenY: -3,
     shownY: 0,
     scale: [3.4, 3.4, 3.4],
+  },
+]
+
+const HOUSE_INFO: HouseInfo[] = [
+  {
+    title: '아늑한 오두막',
+    description: '숲 속 깊은 곳에 자리한 따뜻한 오두막. 지친 여행자들의 쉼터가 되어주는 곳이다.',
+  },
+  {
+    title: '환상의 성',
+    description: '마법으로 가득한 신비로운 성. 수많은 전설이 깃들어 있으며, 밤이 되면 더욱 아름답게 빛난다.',
+  },
+  {
+    title: '마녀의 집',
+    description: '깊은 숲 속 마녀가 사는 기묘한 집. 달빛 아래 더욱 신비롭게 빛나며, 온갖 마법 재료가 가득하다.',
   },
 ]
 
@@ -144,7 +164,70 @@ function CameraSetup() {
   return null
 }
 
-function SceneContent() {
+function HouseInfoPanel({
+  houseIndex,
+  onClose,
+}: {
+  houseIndex: number | null
+  onClose: () => void
+}) {
+  if (houseIndex === null) return null
+  const config = HOUSE_CONFIGS[houseIndex]
+  const info = HOUSE_INFO[houseIndex]
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '2rem',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'rgba(10, 10, 20, 0.92)',
+        backdropFilter: 'blur(10px)',
+        color: 'white',
+        padding: '1.5rem 2rem',
+        borderRadius: '1rem',
+        maxWidth: '420px',
+        width: '90%',
+        textAlign: 'center',
+        zIndex: 100,
+        border: `2px solid ${config.spotActiveColor}`,
+        boxShadow: `0 0 28px ${config.spotActiveColor}55`,
+        fontFamily: 'sans-serif',
+      }}
+    >
+      <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.3rem', fontWeight: 700 }}>
+        {info.title}
+      </h2>
+      <p style={{ margin: '0 0 1.25rem', lineHeight: 1.7, color: '#ccc', fontSize: '0.9rem' }}>
+        {info.description}
+      </p>
+      <button
+        onClick={onClose}
+        style={{
+          background: config.spotActiveColor,
+          color: 'white',
+          border: 'none',
+          borderRadius: '0.5rem',
+          padding: '0.5rem 1.5rem',
+          cursor: 'pointer',
+          fontSize: '0.9rem',
+          fontWeight: 600,
+        }}
+      >
+        닫기
+      </button>
+    </div>
+  )
+}
+
+type SceneContentProps = {
+  lockedRef: { current: boolean }
+  onEnterHouse: (index: number) => void
+  onLeaveHouse: () => void
+}
+
+function SceneContent({ lockedRef, onEnterHouse, onLeaveHouse }: SceneContentProps) {
   const playerRef = useRef<THREE.Group>(null)
   const pointerRef = useRef<THREE.Mesh>(null)
 
@@ -187,27 +270,34 @@ function SceneContent() {
         movingRef.current = false
         setMoving(false)
       }
-
-      HOUSE_CONFIGS.forEach((config, i) => {
-        const nearSpot =
-          Math.abs(config.spotPos[0] - player.position.x) < SPOT_RADIUS &&
-          Math.abs(config.spotPos[2] - player.position.z) < SPOT_RADIUS
-
-        const spot = spotMeshRefs.current[i]
-
-        if (nearSpot && !houseShownRefs.current[i]) {
-          houseShownRefs.current[i] = true
-          houseTargetYs.current[i] = config.shownY
-          if (spot) (spot.material as THREE.MeshStandardMaterial).color.set(config.spotActiveColor)
-        } else if (!nearSpot && houseShownRefs.current[i]) {
-          houseShownRefs.current[i] = false
-          houseTargetYs.current[i] = config.hiddenY
-          if (spot) (spot.material as THREE.MeshStandardMaterial).color.set(config.spotColor)
-        }
-      })
-
-      camTargetY.current = houseShownRefs.current.some(v => v) ? 3 : 5
     }
+
+    // 영역 감지 - 매 프레임 실행
+    HOUSE_CONFIGS.forEach((config, i) => {
+      const nearSpot =
+        Math.abs(config.spotPos[0] - player.position.x) < SPOT_RADIUS &&
+        Math.abs(config.spotPos[2] - player.position.z) < SPOT_RADIUS
+
+      const spot = spotMeshRefs.current[i]
+
+      if (nearSpot && !houseShownRefs.current[i]) {
+        houseShownRefs.current[i] = true
+        houseTargetYs.current[i] = config.shownY
+        if (spot) (spot.material as THREE.MeshStandardMaterial).color.set(config.spotActiveColor)
+        movingRef.current = false
+        setMoving(false)
+        lockedRef.current = true
+        onEnterHouse(i)
+      } else if (!nearSpot && houseShownRefs.current[i]) {
+        houseShownRefs.current[i] = false
+        houseTargetYs.current[i] = config.hiddenY
+        if (spot) (spot.material as THREE.MeshStandardMaterial).color.set(config.spotColor)
+        lockedRef.current = false
+        onLeaveHouse()
+      }
+    })
+
+    camTargetY.current = houseShownRefs.current.some(v => v) ? 3 : 5
 
     // 카메라 Y 부드럽게 이동
     camera.position.y += (camTargetY.current - camera.position.y) * 0.05
@@ -224,6 +314,7 @@ function SceneContent() {
   const isPressedRef = useRef(false)
 
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
+    if (lockedRef.current) return
     e.stopPropagation()
     isPressedRef.current = true
     const player = playerRef.current
@@ -236,10 +327,10 @@ function SceneContent() {
       pointerRef.current.position.x = e.point.x
       pointerRef.current.position.z = e.point.z
     }
-  }, [])
+  }, [lockedRef])
 
   const handlePointerMove = useCallback((e: ThreeEvent<PointerEvent>) => {
-    if (!isPressedRef.current) return
+    if (!isPressedRef.current || lockedRef.current) return
     e.stopPropagation()
     const player = playerRef.current
     if (!player) return
@@ -251,7 +342,7 @@ function SceneContent() {
       pointerRef.current.position.x = e.point.x
       pointerRef.current.position.z = e.point.z
     }
-  }, [])
+  }, [lockedRef])
 
   const handlePointerUp = useCallback(() => {
     isPressedRef.current = false
@@ -317,36 +408,61 @@ function SceneContent() {
 }
 
 export default function WorldStage() {
+  const lockedRef = useRef(false)
+  const [activeHouseIndex, setActiveHouseIndex] = useState<number | null>(null)
+
+  const handleEnterHouse = useCallback((i: number) => {
+    lockedRef.current = true
+    setActiveHouseIndex(i)
+  }, [])
+
+  const handleLeaveHouse = useCallback(() => {
+    lockedRef.current = false
+    setActiveHouseIndex(null)
+  }, [])
+
+  const handleClosePanel = useCallback(() => {
+    lockedRef.current = false
+    setActiveHouseIndex(null)
+  }, [])
+
   return (
-    <Canvas
-      orthographic
-      shadows
-      camera={{
-        position: [1, 5, 5],
-        zoom: 0.2,
-        near: -1000,
-        far: 1000,
-      }}
-      style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', touchAction: 'none' }}
-    >
-      <ambientLight intensity={0.7} />
-      <directionalLight
-        position={[1, 1, 1]}
-        intensity={3}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-left={-100}
-        shadow-camera-right={100}
-        shadow-camera-top={100}
-        shadow-camera-bottom={-100}
-        shadow-camera-near={-100}
-        shadow-camera-far={100}
-      />
-      <CameraSetup />
-      <Suspense fallback={null}>
-        <SceneContent />
-      </Suspense>
-    </Canvas>
+    <>
+      <Canvas
+        orthographic
+        shadows
+        camera={{
+          position: [1, 5, 5],
+          zoom: 0.2,
+          near: -1000,
+          far: 1000,
+        }}
+        style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', touchAction: 'none' }}
+      >
+        <ambientLight intensity={0.7} />
+        <directionalLight
+          position={[1, 1, 1]}
+          intensity={3}
+          castShadow
+          shadow-mapSize-width={2048}
+          shadow-mapSize-height={2048}
+          shadow-camera-left={-100}
+          shadow-camera-right={100}
+          shadow-camera-top={100}
+          shadow-camera-bottom={-100}
+          shadow-camera-near={-100}
+          shadow-camera-far={100}
+        />
+        <CameraSetup />
+        <Suspense fallback={null}>
+          <SceneContent
+            lockedRef={lockedRef}
+            onEnterHouse={handleEnterHouse}
+            onLeaveHouse={handleLeaveHouse}
+          />
+        </Suspense>
+      </Canvas>
+      <HouseInfoPanel houseIndex={activeHouseIndex} onClose={handleClosePanel} />
+    </>
   )
 }
